@@ -1,65 +1,73 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import MCQTest from "./MCQTest";
 
-export default function Dashboard() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
+export type DashboardProps = {
+  dsa: number;
+  java: number;
+  time: number;
+};
+
+type Question = {
+  question: string;
+  options: string[];
+  correctAnswer: number;
+};
+
+export default function Dashboard({
+  dsa,
+  java,
+  time,
+}: DashboardProps) {
+  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ TEMP TOPIC SELECTION (replace later with checkbox state)
-  const selectedTopics = ["Arrays", "Strings", "Core Java"];
+  useEffect(() => {
+    async function loadTest() {
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dsa, java, time }),
+        });
 
-  const startTest = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+        if (!res.ok) throw new Error("API error");
 
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topics: selectedTopics }),
-      });
+        const data = await res.json();
 
-      if (!res.ok) throw new Error("API error");
+        if (!data.questions) {
+          throw new Error("Invalid response");
+        }
 
-      const data = await res.json();
-
-      localStorage.setItem("quizQuestions", JSON.stringify(data.questions));
-      router.push("/quiz");
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load AI test. Please try again.");
-    } finally {
-      setLoading(false);
+        setQuestions(data.questions);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load AI test");
+      } finally {
+        setLoading(false);
+      }
     }
-  };
 
-  return (
-    <div className="bg-white p-8 rounded-xl shadow-md max-w-md mx-auto mt-10">
-      <h2 className="text-2xl font-bold mb-4 text-gray-900">
-        Personalized AI Dashboard
-      </h2>
+    loadTest();
+  }, [dsa, java, time]);
 
-      <p className="text-gray-600 mb-6">
-        Topics selected:{" "}
-        <span className="font-medium">
-          {selectedTopics.join(", ")}
-        </span>
-      </p>
+  if (loading) {
+    return (
+      <div className="bg-white mt-6 p-6 rounded-xl shadow-md">
+        Preparing your personalized test…
+      </div>
+    );
+  }
 
-      <button
-        onClick={startTest}
-        disabled={loading}
-        className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700"
-      >
-        {loading ? "Preparing Test..." : "Start Test"}
-      </button>
+  if (error) {
+    return (
+      <div className="bg-white mt-6 p-6 rounded-xl shadow-md text-red-600">
+        {error}
+      </div>
+    );
+  }
 
-      {error && (
-        <p className="text-red-600 mt-4 text-sm">{error}</p>
-      )}
-    </div>
-  );
+  return <MCQTest questions={questions} />;
 }
